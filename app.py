@@ -1,4 +1,5 @@
 import streamlit as st
+from financial_rag import ask_financial_assistant
 
 st.set_page_config(
     page_title="Financial RAG Assistant",
