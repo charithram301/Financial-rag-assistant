@@ -6,3 +6,5 @@ langchain-text-splitters
 pdfplumber
 numpy
 pymupdf
+torch
+torchvision
