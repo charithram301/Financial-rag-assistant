@@ -11,167 +11,91 @@ Original file is located at
 
 import chromadb
 import google.generativeai as genai
+import streamlit as st
 from sentence_transformers import SentenceTransformer
 
-print("All imports successful")
-
-from google.colab import files
-uploaded = files.upload()
-
-### configuring Gemini ###
-GEMINI_API_KEY = "AQ.Ab8RN6LxL-TwuCv2PHeN76Ntb68e7U-EEjw6Qe_H16J5eD8CpA"
-genai.configure(api_key=GEMINI_API_KEY)
-LLM = genai.GenerativeModel("gemini-2.5-flash")
-
-
-
-### EXTRACTING TEXT ###
-import fitz
-
-documents = []
-
-for file_name in uploaded.keys():
-
-    doc = fitz.open(file_name)
-
-    text = ""
-
-    for page in doc:
-        text += page.get_text()
-
-    documents.append({
-        "company": file_name.replace(".pdf",""),
-        "text": text
-    })
-
-    print(f"Finished {file_name}")
-
-print("Loaded:", len(documents))
-
-### CHUNKING ###
-
-
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-
-splitter = RecursiveCharacterTextSplitter(
-    chunk_size = 1000,
-    chunk_overlap = 200
+# Gemini
+genai.configure(
+    api_key=st.secrets["GEMINI_API_KEY"]
 )
 
-chunks = []
-for doc in documents:
-  split_docs = splitter.split_text(doc["text"])
+LLM = genai.GenerativeModel(
+    "gemini-2.5-flash"
+)
 
-  for chunk in split_docs:
+# Embedding model
+embedding_model = SentenceTransformer(
+    "BAAI/bge-small-en-v1.5"
+)
 
+# Load existing ChromaDB
+client = chromadb.PersistentClient(
+    path="./chroma_db"
+)
 
-    chunks.append({
-        "company":doc["company"],
-        "text": chunk
-    })
-print("Total Chunks:",len(chunks))
-
-### LOADING BGE MODEL AND GENERATING EMBEDDINGS ###
-from sentence_transformers import SentenceTransformer
-embedding_model = SentenceTransformer("BAAI/bge-small-en-v1.5")
-
-
-texts = [chunk["text"] for chunk in chunks]
-
-embedding = embedding_model.encode(
-    texts,
-    batch_size = 32,
-    show_progress_bar = True,
-    convert_to_numpy= True
+collection = client.get_collection(
+    "financial_reports"
 )
 
 
-print("Embedding shape:",embedding.shape)
+def retrieve(query, top_k=5):
 
-### CREATAING CHROMADB AND STOREING EMBEDDINGS ###
-import chromadb
-vectordb = chromadb.Client()
-collection = vectordb.get_or_create_collection(name = "financial_reports")
+    query_embedding = embedding_model.encode(query)
+
+    results = collection.query(
+        query_embeddings=[query_embedding.tolist()],
+        n_results=top_k
+    )
+
+    retrieved = []
+
+    for i in range(len(results["documents"][0])):
+
+        retrieved.append(
+            {
+                "text": results["documents"][0][i],
+                "company": results["metadatas"][0][i]["company"]
+            }
+        )
+
+    return retrieved
 
 
-documents_text = [chunk["text"] for chunk in chunks]
-
-metadatas = [{
-    "company": chunk["company"]}
-    for chunk in chunks
-]
-
-
-ids = [
-    str(i)
-    for i in range(len(chunks))
-]
-
-
-collection.add(
-    ids = ids,
-    documents = documents_text,
-    embeddings = embedding.tolist(),
-    metadatas = metadatas
-)
-print("Stored:", len(documents_text))
-
-### BUILDING RETRIEVA FUNCTION ###
-def retrieve(query , top_k=5):
-  query_embedding = embedding_model.encode(query)
-
-  results = collection.query(query_embeddings=[query_embedding.tolist()],n_results = top_k)
-
-  retrieved = []
-
-  for i in range(len(results["documents"][0])):
-    retrieved.append({"text":results["documents"][0][i],
-                      "Company":results["metadatas"][0][i]["company"]})
-  return retrieved
-
-### TESTING RETRIEVAL FUNCTION ###
-docs = retrieve(
-    "What are Tesla's major risks?"
-)
-
-print(docs[0]["Company"])
-print(docs[0]["text"][:500])
-
-### FINAL RAG PIPELINE INCLUDING GEMINI AND PROMPT ###
 def ask_financial_assistant(question):
 
-  docs = retrieve(question,top_k = 5)
-  context = "\n\n".join(doc["text"] for doc in docs)
-  sources = list(set(doc["Company"] for doc in docs))
+    docs = retrieve(question)
 
+    context = "\n\n".join(
+        [doc["text"] for doc in docs]
+    )
 
-  prompt = f"""
-  You are a senior financial analyst.
-  Answer ONLY using provided context.
-  if the answer is not found in the context,
-  state that clearly.
+    sources = list(
+        set(
+            [doc["company"] for doc in docs]
+        )
+    )
 
-  CONTEXT:{context}
-  QUESTION:{question}
+    prompt = f"""
+You are a senior financial analyst.
 
-  Provide:
-  1. Detailed Answer
-  2. Key Insights
-  3. Sources Used
-  """
-  response = LLM.generate_content(prompt)
+Answer ONLY using the provided context.
 
-  return{"answer": response.text,
-         "sources": sources}
+CONTEXT:
+{context}
 
-result = ask_financial_assistant(
-    "What are Tesla's major operational risks?"
-)
+QUESTION:
+{question}
 
-print(result["answer"])
-print(result["sources"])
+Provide:
+1. Detailed Answer
+2. Key Insights
+3. Sources Used
+"""
 
-result = ask_financial_assistant(
-    "Compare Amazon and Microsoft's growth strategies.")
-print(result["answer"])
+    response = LLM.generate_content(prompt)
+
+    return {
+        "answer": response.text,
+        "sources": sources
+    }
 
