@@ -49,7 +49,7 @@ for file_name in uploaded.keys():
 print("Loaded:", len(documents))
 
 ### CHUNKING ###
-!pip install -q langchain-text-splitters
+
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
