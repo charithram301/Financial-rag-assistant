@@ -1,7 +1,7 @@
 streamlit
 google-generativeai
 sentence-transformers
-chromadb
+chromadb==0.5.5
 langchain-text-splitters
 pdfplumber
 numpy
