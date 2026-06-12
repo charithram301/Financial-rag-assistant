@@ -7,12 +7,7 @@ Original file is located at
     https://colab.research.google.com/drive/1Ugk-_GNcT9TCMfwEEuerbFgFVH9RyOmj
 """
 
-!pip install -q pdfplumber
-!pip install -q langchain
-!pip install -q langchain-community
-!pip install -q sentence-transformers
-!pip install -q chromadb
-!pip install -q google-generativeai
+
 
 import chromadb
 import google.generativeai as genai
@@ -28,7 +23,7 @@ GEMINI_API_KEY = "AQ.Ab8RN6LxL-TwuCv2PHeN76Ntb68e7U-EEjw6Qe_H16J5eD8CpA"
 genai.configure(api_key=GEMINI_API_KEY)
 LLM = genai.GenerativeModel("gemini-2.5-flash")
 
-!pip install pymupdf
+
 
 ### EXTRACTING TEXT ###
 import fitz
