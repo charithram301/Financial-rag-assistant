@@ -34,7 +34,19 @@ client = chromadb.Client()
 collection = client.get_or_create_collection(
     name="financial_reports"
 )
+documents_text = [chunk["text"] for chunk in chunks]
 
+metadatas = [
+    {"company": chunk["company"]}
+    for chunk in chunks
+]
+
+ids = [str(i) for i in range(len(chunks))]
+
+embedding = embedding_model.encode(
+    documents_text,
+    convert_to_numpy=True
+)
 collection.add(
     ids=ids,
     documents=documents_text,
