@@ -29,14 +29,18 @@ embedding_model = SentenceTransformer(
 )
 
 # Load existing ChromaDB
-client = chromadb.PersistentClient(
-    path="./chroma_db"
+client = chromadb.Client()
+
+collection = client.get_or_create_collection(
+    name="financial_reports"
 )
 
-collection = client.get_collection(
-    "financial_reports"
+collection.add(
+    ids=ids,
+    documents=documents_text,
+    embeddings=embeddings.tolist(),
+    metadatas=metadatas
 )
-
 
 def retrieve(query, top_k=5):
 
